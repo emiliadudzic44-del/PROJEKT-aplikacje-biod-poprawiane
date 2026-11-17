@@ -16,6 +16,21 @@ const defaultAttractions = [
     { id: 15, name: "Wodospad w Iwli", city: "Iwla", type: "Natura", cost: 0.00, rating: 4.6, imageUrl: "https://www.aktywniwpodrozy.pl/wp-content/uploads/2024/02/Wodospad-Iwla-aktywniwpodrozy-01-sm.jpg", isApproved: true }
 ];
 
+// Zabezpieczenie przed Stored XSS
+function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, function (char) {
+        const entities = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+
+        return entities[char];
+    });
+}
+
 let attractions = JSON.parse(localStorage.getItem('podkarpacie_data')) || defaultAttractions;
 let users = JSON.parse(localStorage.getItem('podkarpacie_users')) || [{ username: 'admin', password: 'admin123' }];
 let reviews = JSON.parse(localStorage.getItem('podkarpacie_reviews')) || [
@@ -340,8 +355,8 @@ window.openDetailsModal = function(id) {
         let revHtml = '';
         itemReviews.forEach(r => {
             revHtml += `<div style="border-bottom: 1px solid var(--border-color); padding: 6px 0; font-size: 0.85rem; color: var(--text-color);">
-                <strong style="color: var(--primary-color);">${r.user}</strong> (⭐ ${r.rating}):<br>
-                <span style="color: var(--text-color); font-style: italic;">"${r.text}"</span>
+                <strong style="color: var(--primary-color);">${escapeHTML(r.user)}</strong> (⭐ ${r.rating}):<br>
+                <span style="color: var(--text-color); font-style: italic;">"${escapeHTML(r.text)}"</span>
             </div>`;
         });
         reviewsDiv.innerHTML = revHtml;
@@ -642,7 +657,7 @@ function toggleAdminView() {
             const attrName = attr ? attr.name : 'Atrakcja';
             html += `
                 <li style="padding: 0.85rem; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--bg-color);">
-                    <span><strong>${r.user}</strong> o <em>${attrName}</em>: "${r.text}" (⭐${r.rating})</span>
+                    <span><strong>${escapeHTML(r.user)}</strong> o <em>${attrName}</em>: "${escapeHTML(r.text)}" (⭐${r.rating})</span>
                     <div>
                         <button onclick="approveReview(${r.id})" class="btn btn-primary btn-sm">Akceptuj</button>
                         <button onclick="rejectReview(${r.id})" class="btn btn-btn-delete btn-sm" style="margin-left: 0.5rem;">Odrzuć</button>
@@ -763,7 +778,7 @@ function renderUserActivity() {
                 ? '<span style="color: #166534; font-weight: bold;">[Zatwierdzona ✓]</span>' 
                 : '<span style="color: #b45309; font-weight: bold;">[Oczekuje na akceptację ⏳]</span>';
             html += `<li style="padding: 4px 0; border-bottom: 1px solid var(--border-color);">
-                <em>${attrName}</em>: "${r.text}" (⭐${r.rating}) — ${status}
+                <em>${attrName}</em>: "${escapeHTML(r.text)}" (⭐${r.rating}) — ${status}
             </li>`;
         });
         html += '</ul>';
