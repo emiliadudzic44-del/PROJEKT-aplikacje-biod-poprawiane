@@ -49,6 +49,15 @@ let myPlan = [];
 let chartInstance = null;
 let expectedFormCaptcha = 0;
 let expectedLoginCaptcha = 0;
+// Ograniczenie liczby nieudanych prób logowania
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCK_DURATION = 30 * 1000;
+
+let failedLoginAttempts =
+    Number(localStorage.getItem('podkarpacie_login_attempts')) || 0;
+
+let loginLockedUntil =
+    Number(localStorage.getItem('podkarpacie_login_locked_until')) || 0;
 let currentPage = 1;
 const rowsPerPage = 5;
 
@@ -575,8 +584,31 @@ async function handleLogin() {
     const captchaVal = parseInt(document.querySelector('#login-captcha').value);
     const errorEl = document.querySelector('#login-error');
 
+    // Sprawdzenie, czy blokada nadal obowiązuje
+    if (loginLockedUntil > Date.now()) {
+        const remaining = Math.ceil((loginLockedUntil - Date.now()) / 1000);
+
+        errorEl.textContent =
+            `Zbyt wiele nieudanych prób. Spróbuj ponownie za ${remaining} s.`;
+
+        errorEl.classList.remove('hidden');
+        return;
+    }
+
+    // Usunięcie blokady po upływie czasu
+    if (loginLockedUntil > 0 && loginLockedUntil <= Date.now()) {
+        failedLoginAttempts = 0;
+        loginLockedUntil = 0;
+
+        localStorage.removeItem('podkarpacie_login_attempts');
+        localStorage.removeItem('podkarpacie_login_locked_until');
+    }
+
+    // Sprawdzenie CAPTCHA
     if (isNaN(captchaVal) || captchaVal !== expectedLoginCaptcha) {
-        errorEl.textContent = 'Błąd weryfikacji. Wpisz poprawny wynik działania!';
+        errorEl.textContent =
+            'Błąd weryfikacji. Wpisz poprawny wynik działania!';
+
         errorEl.classList.remove('hidden');
         generateCaptchas();
         document.querySelector('#login-captcha').value = '';
@@ -590,19 +622,57 @@ async function handleLogin() {
         : false;
 
     if (passwordCorrect) {
+        // Poprawne logowanie – wyzerowanie licznika
+        failedLoginAttempts = 0;
+        loginLockedUntil = 0;
+
+        localStorage.removeItem('podkarpacie_login_attempts');
+        localStorage.removeItem('podkarpacie_login_locked_until');
+
         currentUser = user;
         myPlan = JSON.parse(localStorage.getItem(`plan_${currentUser}`)) || [];
+
         saveToStorage();
         checkAuthSession();
         renderTable();
         renderPlan();
+
         errorEl.classList.add('hidden');
+
         document.querySelector('#login-user').value = '';
         document.querySelector('#login-pass').value = '';
         document.querySelector('#login-captcha').value = '';
+
     } else {
-        errorEl.textContent = 'Błędny login lub hasło!';
+        // Zwiększenie licznika błędnych prób
+        failedLoginAttempts++;
+
+        localStorage.setItem(
+            'podkarpacie_login_attempts',
+            failedLoginAttempts
+        );
+
+        if (failedLoginAttempts >= MAX_LOGIN_ATTEMPTS) {
+            loginLockedUntil = Date.now() + LOGIN_LOCK_DURATION;
+
+            localStorage.setItem(
+                'podkarpacie_login_locked_until',
+                loginLockedUntil
+            );
+
+            errorEl.textContent =
+                'Zbyt wiele nieudanych prób logowania. Konto zostało czasowo zablokowane na 30 sekund.';
+
+        } else {
+            const remainingAttempts =
+                MAX_LOGIN_ATTEMPTS - failedLoginAttempts;
+
+            errorEl.textContent =
+                `Błędny login lub hasło! Pozostało prób: ${remainingAttempts}.`;
+        }
+
         errorEl.classList.remove('hidden');
+
         generateCaptchas();
         document.querySelector('#login-captcha').value = '';
     }
