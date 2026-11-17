@@ -481,51 +481,96 @@ function generateCaptchas() {
     if (loginQ) loginQ.textContent = `${n3} + ${n4}`;
 }
 
+
 function handleAddForm(e) {
     e.preventDefault();
+
     const msgEl = document.querySelector('#form-message');
-    
-    const captcha = parseInt(document.querySelector('#form-captcha').value);
-    if (captcha !== expectedFormCaptcha) { 
-        msgEl.textContent = "Błąd weryfikacji. Zły wynik obliczeń.";
-        msgEl.className = "message";
-        msgEl.style = "background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;";
+    const showError = (message) => {
+        msgEl.textContent = message;
+        msgEl.className = 'message';
+        msgEl.style = 'background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;';
         msgEl.classList.remove('hidden');
-        generateCaptchas(); 
-        document.querySelector('#form-captcha').value = ''; 
-        return;
-    }
+    };
 
     const name = document.querySelector('#form-name').value.trim();
     const city = document.querySelector('#form-city').value.trim();
-    const type = document.querySelector('#form-type').value;
-    const cost = parseFloat(document.querySelector('#form-cost').value);
-    const rating = parseFloat(document.querySelector('#form-rating').value);
+    const type = document.querySelector('#form-type').value.trim();
+    const costValue = document.querySelector('#form-cost').value.trim();
+    const ratingValue = document.querySelector('#form-rating').value.trim();
     const imageUrl = document.querySelector('#form-url').value.trim();
-        if (
+    const captchaValue = document.querySelector('#form-captcha').value.trim();
+
+    const cost = Number(costValue);
+    const rating = Number(ratingValue);
+    const captcha = Number(captchaValue);
+
+    // Walidacja danych niezależna od atrybutów HTML5
+    if (
         !name ||
+        name.length > 100 ||
         !city ||
+        city.length > 80 ||
+        !type ||
+        costValue === '' ||
         !Number.isFinite(cost) ||
         cost < 0 ||
+        ratingValue === '' ||
         !Number.isFinite(rating) ||
         rating < 1 ||
         rating > 5
     ) {
-        msgEl.textContent = 'Nieprawidłowe dane. Cena musi być nieujemna, a ocena od 1 do 5.';
-        msgEl.className = 'message';
-        msgEl.classList.remove('hidden');
+        showError('Nieprawidłowe dane. Sprawdź nazwę, miasto, typ, cenę i ocenę.');
         return;
     }
 
-    attractions.push({ id: Date.now(), name, city, type, cost, rating, imageUrl, isApproved: false, submittedBy: currentUser || 'Anonim' });
+    // Sprawdzenie adresu obrazka
+    if (imageUrl) {
+        try {
+            const url = new URL(imageUrl);
+            if (!['http:', 'https:'].includes(url.protocol)) {
+                showError('Podaj prawidłowy adres obrazka (HTTP lub HTTPS).');
+                return;
+            }
+        } catch {
+            showError('Podaj prawidłowy adres obrazka.');
+            return;
+        }
+    }
+
+    // Weryfikacja CAPTCHA
+    if (
+        captchaValue === '' ||
+        !Number.isInteger(captcha) ||
+        captcha !== expectedFormCaptcha
+    ) {
+        showError('Błąd weryfikacji. Zły wynik obliczeń.');
+        generateCaptchas();
+        document.querySelector('#form-captcha').value = '';
+        return;
+    }
+
+    attractions.push({
+        id: Date.now(),
+        name,
+        city,
+        type,
+        cost,
+        rating,
+        imageUrl,
+        isApproved: false,
+        submittedBy: currentUser || 'Anonim'
+    });
+
     saveToStorage();
 
-    msgEl.textContent = "Atrakcja zgłoszona! Oczekuje na weryfikację przez administratora.";
-    msgEl.className = "message success";
-    msgEl.style = "";
+    msgEl.textContent = 'Atrakcja zgłoszona! Oczekuje na weryfikację przez administratora.';
+    msgEl.className = 'message success';
+    msgEl.style = '';
     msgEl.classList.remove('hidden');
+
     document.querySelector('#add-form').reset();
-    generateCaptchas(); 
+    generateCaptchas();
 }
 
 function checkAuthSession() {
