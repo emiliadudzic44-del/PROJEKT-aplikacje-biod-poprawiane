@@ -502,6 +502,20 @@ function handleAddForm(e) {
     const cost = parseFloat(document.querySelector('#form-cost').value);
     const rating = parseFloat(document.querySelector('#form-rating').value);
     const imageUrl = document.querySelector('#form-url').value.trim();
+        if (
+        !name ||
+        !city ||
+        !Number.isFinite(cost) ||
+        cost < 0 ||
+        !Number.isFinite(rating) ||
+        rating < 1 ||
+        rating > 5
+    ) {
+        msgEl.textContent = 'Nieprawidłowe dane. Cena musi być nieujemna, a ocena od 1 do 5.';
+        msgEl.className = 'message';
+        msgEl.classList.remove('hidden');
+        return;
+    }
 
     attractions.push({ id: Date.now(), name, city, type, cost, rating, imageUrl, isApproved: false, submittedBy: currentUser || 'Anonim' });
     saveToStorage();
@@ -689,6 +703,10 @@ function handleLogout() {
 }
 
 function toggleAdminView() {
+        if (currentUser !== 'admin') {
+        alert('Brak uprawnień administratora!');
+        return;
+    }
     const pending = attractions.filter(a => !a.isApproved);
     const pendingReviews = reviews.filter(r => !r.isApproved);
     const listContainer = document.querySelector('#admin-pending-list');
@@ -742,6 +760,11 @@ function toggleAdminView() {
     listContainer.innerHTML = html;
 
     document.getElementById('admin-approve-all').addEventListener('click', () => {
+        if (currentUser !== 'admin') {
+            alert('Brak uprawnień administratora!');
+            return;
+        }
+    
         attractions.forEach(a => a.isApproved = true);
         reviews.forEach(r => r.isApproved = true);
         updateAllData();
@@ -749,23 +772,49 @@ function toggleAdminView() {
 }
 
 window.approveAttraction = function(id) {
+    if (currentUser !== 'admin') {
+        alert('Brak uprawnień administratora!');
+        return;
+    }
+
     const item = attractions.find(a => a.id === id);
-    if (item) item.isApproved = true;
-    updateAllData();
+
+    if (item) {
+        item.isApproved = true;
+        updateAllData();
+    }
 };
 
 window.rejectAttraction = function(id) {
+    if (currentUser !== 'admin') {
+        alert('Brak uprawnień administratora!');
+        return;
+    }
+
     attractions = attractions.filter(a => a.id !== id);
     updateAllData();
 };
 
 window.approveReview = function(id) {
+    if (currentUser !== 'admin') {
+        alert('Brak uprawnień administratora!');
+        return;
+    }
+
     const rev = reviews.find(r => r.id === id);
-    if (rev) rev.isApproved = true;
-    updateAllData();
+
+    if (rev) {
+        rev.isApproved = true;
+        updateAllData();
+    }
 };
 
 window.rejectReview = function(id) {
+    if (currentUser !== 'admin') {
+        alert('Brak uprawnień administratora!');
+        return;
+    }
+
     reviews = reviews.filter(r => r.id !== id);
     updateAllData();
 };
