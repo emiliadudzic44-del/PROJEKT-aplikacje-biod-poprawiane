@@ -35,6 +35,95 @@ let expectedLoginCaptcha = 0;
 let currentPage = 1;
 const rowsPerPage = 5;
 
+// Generowanie solonego skrótu hasła przy użyciu PBKDF2
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(password),
+        'PBKDF2',
+        false,
+        ['deriveBits']
+    );
+
+    const hashBuffer = await crypto.subtle.deriveBits(
+        {
+            name: 'PBKDF2',
+            salt: salt,
+            iterations: 310000,
+            hash: 'SHA-256'
+        },
+        keyMaterial,
+        256
+    );
+
+    const toHex = bytes =>
+        Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+
+    return {
+        salt: toHex(salt),
+        hash: toHex(new Uint8Array(hashBuffer)),
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 310000
+    };
+}
+
+// Weryfikacja hasła podczas logowania
+async function verifyPassword(password, storedPassword) {
+    if (!storedPassword || !storedPassword.salt || !storedPassword.hash) {
+        return false;
+    }
+
+    const encoder = new TextEncoder();
+    const salt = new Uint8Array(
+        storedPassword.salt.match(/.{2}/g).map(byte => parseInt(byte, 16))
+    );
+
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(password),
+        'PBKDF2',
+        false,
+        ['deriveBits']
+    );
+
+    const hashBuffer = await crypto.subtle.deriveBits(
+        {
+            name: 'PBKDF2',
+            salt: salt,
+            iterations: storedPassword.iterations,
+            hash: 'SHA-256'
+        },
+        keyMaterial,
+        256
+    );
+
+    const calculatedHash = Array.from(new Uint8Array(hashBuffer))
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('');
+
+    return calculatedHash === storedPassword.hash;
+}
+
+// Migracja istniejących haseł zapisanych otwartym tekstem
+async function migratePasswordsToHashes() {
+    let changed = false;
+
+    for (const user of users) {
+        if (typeof user.password === 'string') {
+            user.passwordHash = await hashPassword(user.password);
+            delete user.password;
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        saveToStorage();
+    }
+}
+
 function saveToStorage() {
     localStorage.setItem('podkarpacie_data', JSON.stringify(attractions));
     localStorage.setItem('podkarpacie_users', JSON.stringify(users));
@@ -47,7 +136,8 @@ function saveToStorage() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await migratePasswordsToHashes();
     setupNavigation();
     setupThemeToggle();
     setupImageModal();
@@ -426,7 +516,7 @@ function checkAuthSession() {
     }
 }
 
-function handleRegister() {
+async function handleRegister() {
     const user = document.querySelector('#reg-user').value.trim();
     const pass = document.querySelector('#reg-pass').value.trim();
     const msg = document.querySelector('#reg-message');
@@ -445,7 +535,13 @@ function handleRegister() {
         return;
     }
 
-    users.push({ username: user, password: pass });
+        const passwordHash = await hashPassword(pass);
+    
+    users.push({
+        username: user,
+        passwordHash: passwordHash
+    });
+    
     saveToStorage();
 
     msg.textContent = "Konto utworzone! Możesz się teraz zalogować.";
@@ -455,7 +551,7 @@ function handleRegister() {
     document.querySelector('#reg-pass').value = '';
 }
 
-function handleLogin() {
+async function handleLogin() {
     const user = document.querySelector('#login-user').value.trim();
     const pass = document.querySelector('#login-pass').value.trim();
     const captchaVal = parseInt(document.querySelector('#login-captcha').value);
@@ -469,9 +565,13 @@ function handleLogin() {
         return;
     }
 
-    const found = users.find(u => u.username === user && u.password === pass);
+    const foundUser = users.find(u => u.username === user);
 
-    if (found) {
+    const passwordCorrect = foundUser
+        ? await verifyPassword(pass, foundUser.passwordHash)
+        : false;
+
+    if (passwordCorrect) {
         currentUser = user;
         myPlan = JSON.parse(localStorage.getItem(`plan_${currentUser}`)) || [];
         saveToStorage();
