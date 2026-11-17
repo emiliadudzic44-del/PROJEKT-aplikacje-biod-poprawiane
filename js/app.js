@@ -26,8 +26,10 @@ let reviews = JSON.parse(localStorage.getItem('podkarpacie_reviews')) || [
     { id: 105, attractionId: 6, user: "Marek_Rz", text: "Interaktywne wystawy, super dla całej rodziny.", rating: 5, isApproved: true },
     { id: 106, attractionId: 9, user: "Tomasz_S", text: "Przejazd kolejką robi niesamowite wrażenie na dzieciach.", rating: 5, isApproved: true }
 ];
-let currentUser = localStorage.getItem('podkarpacie_current_user') || null;
-let myPlan = currentUser ? (JSON.parse(localStorage.getItem(`plan_${currentUser}`)) || []) : [];
+// Sesja jest przechowywana tylko w pamięci aplikacji.
+// Wartość podmieniona ręcznie w Local Storage nie przywróci uprawnień.
+let currentUser = null;
+let myPlan = [];
 
 let chartInstance = null;
 let expectedFormCaptcha = 0;
@@ -128,12 +130,13 @@ function saveToStorage() {
     localStorage.setItem('podkarpacie_data', JSON.stringify(attractions));
     localStorage.setItem('podkarpacie_users', JSON.stringify(users));
     localStorage.setItem('podkarpacie_reviews', JSON.stringify(reviews));
+
     if (currentUser) {
         localStorage.setItem(`plan_${currentUser}`, JSON.stringify(myPlan));
-        localStorage.setItem('podkarpacie_current_user', currentUser);
-    } else {
-        localStorage.removeItem('podkarpacie_current_user');
     }
+
+    // Celowo nie zapisujemy currentUser w Local Storage.
+    // Po odświeżeniu strony użytkownik musi zalogować się ponownie.
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -593,7 +596,7 @@ async function handleLogin() {
 function handleLogout() {
     currentUser = null;
     myPlan = [];
-    localStorage.removeItem('podkarpacie_current_user');
+
     checkAuthSession();
     renderTable();
     renderPlan();
